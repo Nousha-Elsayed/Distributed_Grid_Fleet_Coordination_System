@@ -1,0 +1,2 @@
+int32 completed_count
+int32 total_tasks

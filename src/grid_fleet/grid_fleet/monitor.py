@@ -8,9 +8,9 @@ import time
 import rclpy
 from rclpy.node import Node
 from grid_fleet_interfaces.msg import VehicleState
+from grid_fleet_interfaces.msg import CompletedTasks
 
-
-STUCK_THRESHOLD = 10.0
+STUCK_THRESHOLD = 10.0  # seconds
 
 
 class MonitorNode(Node):
@@ -20,14 +20,26 @@ class MonitorNode(Node):
 
         # vehicle_name -> state string
         self.vehicle_states = {}
-
         # vehicle_name -> timestamp of last state change
         self.state_change_time = {}
 
+        # Current fleet completed tasks
+        self.completed_count = 0
+        self.total_tasks = 0
+
+        # Subscribe to vehicle states
         self.create_subscription(
             VehicleState,
             "/vehicle_state",
             self.handle_vehicle_state,
+            10
+        )
+
+        # Subscribe to completed tasks
+        self.create_subscription(
+            CompletedTasks,
+            "/completed_tasks",
+            self.handle_completed_tasks,
             10
         )
 
@@ -37,7 +49,7 @@ class MonitorNode(Node):
         self.get_logger().info("Monitor node started.")
 
     def handle_vehicle_state(self, msg):
-        name      = msg.vehicle_name
+        name = msg.vehicle_name
         new_state = msg.state
         old_state = self.vehicle_states.get(name)
 
@@ -45,41 +57,46 @@ class MonitorNode(Node):
             self.vehicle_states[name] = new_state
             self.state_change_time[name] = time.time()
         else:
+            # Ensure we track time for vehicles never changed
             if name not in self.state_change_time:
                 self.state_change_time[name] = time.time()
 
-    def print_dashboard(self):
-        self.get_logger().info("=" * 52)
-        self.get_logger().info("   FLEET MONITOR DASHBOARD")
-        self.get_logger().info("=" * 52)
+    def handle_completed_tasks(self, msg):
+        self.completed_count = msg.completed_count
+        self.total_tasks = msg.total_tasks
 
-        now          = time.time()
+    def print_dashboard(self):
+        self.get_logger().info("=" * 60)
+        self.get_logger().info("   FLEET MONITOR DASHBOARD")
+        self.get_logger().info("=" * 60)
+
+        now = time.time()
         waiting_list = []
-        stuck_list   = []
+        stuck_list = []
 
         for name in sorted(self.vehicle_states):
-            state   = self.vehicle_states[name]
+            state = self.vehicle_states[name]
             elapsed = now - self.state_change_time.get(name, now)
 
             self.get_logger().info(
-                f"  {name:<12} | {state:<22} | {elapsed:.1f}s in state"
+                f"  {name:<12} | {state:<22} | {elapsed:6.1f}s in state"
             )
 
             if state == "WAITING":
                 waiting_list.append(name)
-
             if elapsed > STUCK_THRESHOLD and state not in ("IDLE", "FINISHED"):
                 stuck_list.append(name)
 
-        self.get_logger().info("-" * 52)
-        self.get_logger().info(f"  Waiting : {waiting_list if waiting_list else 'None'}")
+        self.get_logger().info("-" * 60)
+        self.get_logger().info(f"  Waiting Vehicles : {waiting_list if waiting_list else 'None'}")
+        self.get_logger().info(f"  Completed Tasks  : {self.completed_count}/{self.total_tasks}")
 
         for name in stuck_list:
             self.get_logger().warn(
-                f"ALERT: {name} is STUCK in '{self.vehicle_states[name]}' for >10s!"
+                f"ALERT: {name} is STUCK in '{self.vehicle_states[name]}' for >{STUCK_THRESHOLD}s!"
             )
 
-        self.get_logger().info("=" * 52)
+        self.get_logger().info("=" * 60)
 
 
 def main(args=None):

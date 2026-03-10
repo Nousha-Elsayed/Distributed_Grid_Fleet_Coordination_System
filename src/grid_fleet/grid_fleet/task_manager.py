@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Task Manager Node for Distributed Grid Fleet Coordination (Simulation Only)
-
+Task Manager Node for Distributed Grid Fleet Coordination
 Responsibilities:
 - Generate at least 10 tasks
 - Store tasks in a list
@@ -14,22 +13,28 @@ Responsibilities:
 import rclpy
 from rclpy.node import Node
 import random
-from grid_fleet_interfaces.srv import RequestTask  # Custom service
+from grid_fleet_interfaces.srv import RequestTask  #custom service
+from grid_fleet_interfaces.msg import CompletedTasks # custom msg
 
 class TaskManagerNode(Node):
     def __init__(self):
         super().__init__('task_manager')    #start the node
         self.get_logger().info("Task Manager Node Started") # console print node started
+        
+        #publish 
+        self.completed_pub = self.create_publisher(CompletedTasks, '/completed_tasks', 10)
+
         self.declare_parameter("num_tasks", 10) #parameter: number of tasks (default 10) to change from terminal if needed
         num_tasks = self.get_parameter("num_tasks").value
-
         self.tasks = self.generate_tasks(num_tasks)        # generate tasks
+        self.total_tasks = len(self.tasks) # count them 
 
         self.completed_count = 0   # Count of tasks completed
 
         #track last task assigned to each vehicle
         self.vehicle_last_task = {}  # key: 'A', 'B', 'C', value: last task vehicle id
 
+        
         #service to handle task requests
         self.task_service = self.create_service(
             RequestTask,
@@ -54,6 +59,12 @@ class TaskManagerNode(Node):
                 'dropoff': dropoff,
                 'assigned': False
             })
+        # Publish task count using custom message
+        task_msg = CompletedTasks()
+        task_msg.completed_count = 0           # initially no tasks completed
+        task_msg.total_tasks = len(task_list)  # total generated tasks
+        self.completed_pub.publish(task_msg) 
+
         return task_list
 
     def handle_request_task(self, request, response):
@@ -72,6 +83,12 @@ class TaskManagerNode(Node):
                 f"Vehicle {vehicle_id} finished Task {last_task}. "
                 f"Total completed: {self.completed_count}/{len(self.tasks)}"
             )
+            #publish completed count
+            msg = CompletedTasks()
+            msg.completed_count = self.completed_count
+            msg.total_tasks = len(self.tasks)
+            self.completed_pub.publish(msg)
+
             del self.vehicle_last_task[vehicle_id]
 
         # Assign next available unassigned task
