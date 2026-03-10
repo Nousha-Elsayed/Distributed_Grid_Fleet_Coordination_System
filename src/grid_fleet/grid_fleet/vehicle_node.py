@@ -5,7 +5,6 @@ from rclpy.node import Node
 from grid_fleet_interfaces.msg import VehiclePosition, VehicleState
 from grid_fleet_interfaces.srv import RequestTask, RequestMove
 
-# الـ states
 IDLE              = "IDLE"
 REQUEST_TASK      = "REQUEST_TASK"
 MOVING_TO_PICKUP  = "MOVING_TO_PICKUP"
@@ -32,11 +31,9 @@ class Vehicle(Node):
         self.current_task_id = -1
         self.prev_state      = MOVING_TO_PICKUP
 
-        # publishers
         self.pos_pub   = self.create_publisher(VehiclePosition, '/vehicle_position', 10)
         self.state_pub = self.create_publisher(VehicleState,    '/vehicle_state',    10)
 
-        # clients
         self.t_cli = self.create_client(RequestTask, '/request_task')
         self.m_cli = self.create_client(RequestMove, '/request_move')
 
@@ -45,7 +42,6 @@ class Vehicle(Node):
         self.m_cli.wait_for_service()
         self.get_logger().info(f"[{self.v_id}] ready at ({self.x},{self.y})")
 
-    # ── publish ──────────────────────────────────────
     def pub_pos(self):
         m = VehiclePosition()
         m.vehicle_name = self.v_id
@@ -64,7 +60,6 @@ class Vehicle(Node):
         self.state = s
         self.pub_state()
 
-    # ── طلب task ─────────────────────────────────────
     def get_new_task(self):
         req = RequestTask.Request()
         req.vehicle_id = self.v_id
@@ -90,20 +85,16 @@ class Vehicle(Node):
         else:
             self.set_state(FINISHED)
 
-    # ── خطوة واحدة ناحية target ──────────────────────
     def step_towards_target(self, tx, ty):
-        # وصلنا؟
         if self.x == tx and self.y == ty:
             return True
 
-        # حساب الخطوة — x الأول وبعدين y
         next_x, next_y = self.x, self.y
         if self.x != tx:
             next_x = self.x + (1 if tx > self.x else -1)
         else:
             next_y = self.y + (1 if ty > self.y else -1)
 
-        # طلب إذن التحرك
         req = RequestMove.Request()
         req.vehicle_name = self.v_id
         req.target_x     = next_x
@@ -112,7 +103,6 @@ class Vehicle(Node):
         rclpy.spin_until_future_complete(self, future)
 
         if future.result().approved:
-            # وافق — اتحرك
             self.x, self.y = next_x, next_y
             self.pub_pos()
             self.get_logger().info(
@@ -120,7 +110,6 @@ class Vehicle(Node):
             )
             time.sleep(1.5)
         else:
-            # رفض — استنى
             self.get_logger().info(
                 f"[{self.v_id}] blocked at ({next_x},{next_y}) — waiting"
             )
@@ -130,7 +119,6 @@ class Vehicle(Node):
 
         return False
 
-    # ── logic loop ───────────────────────────────────
     def logic_loop(self):
         if self.state == IDLE:
             self.set_state(REQUEST_TASK)
@@ -167,7 +155,6 @@ class Vehicle(Node):
         elif self.state == FINISHED:
             self.get_logger().info(f"[{self.v_id}] all done!")
 
-    # ── run ──────────────────────────────────────────
     def run(self):
         self.pub_pos()
         self.set_state(REQUEST_TASK)
