@@ -162,10 +162,10 @@ Each student is responsible for **one node**:
 Because **launch files are not used**, nodes must be started **manually** in separate terminals:
 
 ```bash
-roscore
-rosrun your_package task_manager
-rosrun your_package traffic_controller
-rosrun your_package monitor
-rosrun your_package vehicle_node vehicle1
-rosrun your_package vehicle_node vehicle2
-rosrun your_package vehicle_node vehicle3
+
+ros2 run grid_fleet task_manager
+ros2 run grid_fleet traffic_controller
+ros2 run grid_fleet monitor
+ros2 run grid_fleet vehicle_node vehicle1
+ros2 run grid_fleet vehicle_node vehicle2
+ros2 run grid_fleet vehicle_node vehicle3
